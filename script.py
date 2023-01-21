@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 import os
+import json
 from typing import TypedDict
 from dotenv import load_dotenv
 from google.auth.transport.requests import Request
@@ -17,6 +18,7 @@ class File(TypedDict):
     """
     id: str
     name: str
+    mimeType: str
 
 
 def getEnv() -> dict:
@@ -27,7 +29,8 @@ def getEnv() -> dict:
         # make sure to not check this into Git
         'CREDENTIALS_FILE': os.getenv('CREDENTIALS_FILE'),
         # make sure to not check this into Git
-        'TOKEN_FILE': os.getenv('TOKEN_FILE', 'token.json')
+        'TOKEN_FILE': os.getenv('TOKEN_FILE', 'token.json'),
+        'CACHE_FILE': os.getenv('CACHE_FILE', 'cache.json'),
     }
 
 
@@ -53,52 +56,102 @@ def googleAuthenticate(credentialsFile, tokenFile) -> Credentials:
                 credentialsFile, SCOPES)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
-        with open(tokenFile, 'w') as token:
-            token.write(creds.to_json())
+        with open(tokenFile, 'w') as f:
+            f.write(creds.to_json())
     return creds
 
 
-def listFolders(service, rootFolder: str, queryParams: dict[any] = dict()) -> list[File]:
-    try:
-        files = []
-        nextPageToken = None
-        # iterate over pages
-        while True:
+def googleListFiles(service, folder: str, queryParams: dict[any] = dict(), mimeType: str = None, mimeTypeExclude: bool = False) -> list[File]:
+    """
+    mime type for folders: application/vnd.google-apps.folder
+    """
+    mimeTypeExcludeStr = '!' if mimeTypeExclude else ""
+    mimeTypeFilter = f" and mimeType{mimeTypeExcludeStr}='{mimeType}'" if mimeType else ""
+    files = []
+    pageToken = None
+    # iterate over pages
+    while True:
+        try:
             response = service.files().list(
-                q=f"'{rootFolder}' in parents and mimeType='application/vnd.google-apps.folder' and not trashed",
-                pageToken=nextPageToken,
+                # and mimeType='application/vnd.google-apps.folder'
+                q=f"'{folder}' in parents and not trashed" + mimeTypeFilter,
+                pageToken=pageToken,
                 **queryParams
             ).execute()
-            files.extend(response.get('files', []))
-            nextPageToken = response.get('nextPageToken', None)
-            if nextPageToken is None:
-                break
+        except HttpError as error:
+            raise error
+        files.extend(response.get('files', []))
 
-    except HttpError as error:
-        raise error
+        pageToken = response.get('nextPageToken', None)
+        if pageToken is None:
+            break
 
     return files
 
 
-def main():
-    env = getEnv()
-    creds = googleAuthenticate(env['CREDENTIALS_FILE'], env['TOKEN_FILE'])
+def getFolderContent(env: dict, service, folder: str, files: bool = True, folders: bool = True) -> list[File]:
     # Standard params for Google Drive API file list.
     standardParams = {
-        'fields': "nextPageToken, files(id, name)",
+        'fields': "nextPageToken, files(id, name, mimeType)",
         'pageSize': 30,  # not guaranteed to be respected by API
         'supportsAllDrives': True,  # specify that we handle shared drives
         'includeItemsFromAllDrives': True,  # specify that we handle shared drives
         'corpora': 'drive',  # used for handling shared drives
         'driveId': env['DRIVE_ID']
     }
+    MIME_TYPE_FOLDER = 'application/vnd.google-apps.folder'
+    mimeType = None
+    invert = False
+    if files and folders:
+        mimeType = None
+        invert = False
+    elif files and not folders:
+        mimeType = MIME_TYPE_FOLDER
+        invert = True
+    elif not files and folders:
+        mimeType = MIME_TYPE_FOLDER
+        invert = False
+    elif not files and not folders:
+        raise ValueError("Cannot return neither files nor folders.")
+    return googleListFiles(service, folder, standardParams, mimeType, invert)
+
+
+def main():
+    env = getEnv()
+    creds = googleAuthenticate(env['CREDENTIALS_FILE'], env['TOKEN_FILE'])
+
     try:
         service = build('drive', 'v3', credentials=creds)
 
-        folders = listFolders(service, env['ROOT_FOLDER_ID'], standardParams)
-        for folder in folders:
-            print('id: {0}, name; {1}'.format(folder['id'], folder['name']))
-        print(len(folders))
+        print("query top level folder")
+        topLevelFolders = getFolderContent(
+            env, service, env['ROOT_FOLDER_ID'], False, True)
+        # for folder in topLevelFolders:
+        #     print('id: {0}, name: {1}, mimeType: {2}'.format(
+        #         folder['id'], folder['name'], folder['mimeType']))
+        # print(len(topLevelFolders))
+
+        data = {
+            'topLevel': {
+                'nrOfFolders': len(topLevelFolders),
+                'folders': topLevelFolders,
+            },
+        }
+
+        for folder in topLevelFolders:
+            print(f"query folder: '{folder['name']}'")
+            id = folder['id']
+            folders = getFolderContent(env, service, id, False, True)
+            files = getFolderContent(env, service, id, True, False)
+            data[id] = {
+                'nrOfFolders': len(folders),
+                'nrOfFiles': len(files),
+                'folders': folders,
+                'files': files,
+            }
+
+        with open(env['CACHE_FILE'], 'w') as f:
+            json.dump(data, f, indent=4, check_circular=False)
     except HttpError as error:
         raise error
 
