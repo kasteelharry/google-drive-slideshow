@@ -1,8 +1,7 @@
 from typing import TypedDict
-from collections.abc import Iterable
 
 
-# custom types
+env = dict[str, any]
 
 ID = str
 
