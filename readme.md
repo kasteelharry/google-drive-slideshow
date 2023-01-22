@@ -54,3 +54,7 @@ Tkinter: `pip install tk-tools` should be enough? Else `apt install python3-tk`.
 `apt install python3-pil python3-pil.imagetk`
 
 check supported image formats of Pillow: `python3 -m PIL`
+
+### TODO
+
+Exclude large (> ~10MB) files as they take too long to download. Rejection sample these.
