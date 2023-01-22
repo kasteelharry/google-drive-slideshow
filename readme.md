@@ -4,6 +4,8 @@ Presents random pictures from a given Google Drive folder.
 
 The application requires read access to your Google Drive. It will ask for it during first run or if it expired.
 
+This does work with shared Drives.
+
 ## Setup
 
 You need to create a Google Cloud project, enable the API `drive.readonly`, Configure OAuth, and create access credentials. Make sure the Google account you are using has access to the files you want for the slideshow.
@@ -36,6 +38,10 @@ Install dependencies from `requirements.txt`.
 Copyright (C) 2023 Michael Heider michael@heider.org
 
 This software is licensed under GPL 3.0 or any later version, see license file.
+
+## Trivia
+
+This project was created to show off pictures of [EESTEC LC Zurich](https://www.eestec.ch) by Michael Heider in January 2023, then chairman of EESTEC LC Zurich.
 
 ## Developper
 
