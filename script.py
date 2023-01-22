@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from customTypes import *
 from fileSystem import FileSystem
 
+
 class Main:
     __env: env
     __fileSystem: FileSystem
@@ -25,9 +26,10 @@ class Main:
             'CACHE_FILE': os.getenv('CACHE_FILE', 'cache.json'),
         }
         if env['DRIVE_ID'] and env['ROOT_FOLDER_ID'] and env['CREDENTIALS_FILE']:
-            self.__env=env
+            self.__env = env
         else:
-            raise ValueError('Environment variables are invalid. Check your `.env`.')
+            raise ValueError(
+                'Environment variables are invalid. Check your `.env`.')
 
     def __chooseRandomFileRec(self, folder: Folder) -> tuple[File, str]:
         hasFiles = folder['nrFiles'] > 0
@@ -41,17 +43,20 @@ class Main:
         if hasFiles and rFolder == n-1:
             # pick file from current folder
             rFile = random.randint(0, folder['nrFiles']-1)
-            file: File = self.__fileSystem.filterNodes(folder['nodes'], False, True)[rFile]
+            file: File = self.__fileSystem.filterNodes(
+                folder['nodes'], False, True)[rFile]
             return file, file['name']
         else:
             # descend one layer
-            nextNode = self.__fileSystem.filterNodes(folder['nodes'], True, False)[rFolder]
+            nextNode = self.__fileSystem.filterNodes(
+                folder['nodes'], True, False)[rFolder]
             nextFolder = self.__fileSystem.getFolder(nextNode['id'])
             file, path = self.__chooseRandomFileRec(nextFolder)
             return file, nextFolder['name'] + "/" + path
 
     def __chooseRandomFileFirstLevel(self) -> tuple[File, str]:
-        topLevelFolder = self.__fileSystem.getFolder(self.__env['ROOT_FOLDER_ID'])
+        topLevelFolder = self.__fileSystem.getFolder(
+            self.__env['ROOT_FOLDER_ID'])
         nrFolders = topLevelFolder['nrFolders']
         topLevelFolders = self.__fileSystem.filterNodes(
             topLevelFolder['nodes'], True, False)
@@ -65,6 +70,16 @@ class Main:
         Choose a random picture.
         Retry in case of errors.
         """
+
+        ###########################################################################################
+        ###########################################################################################
+        ###########################################################################################
+        # TODO
+        # make sure the file is an image (else rejection sampling)
+        # download the file
+        # display the file
+        # find a way to still display the file while we are downloading the next one in the background
+
         errors = 0
         while errors < 3:
             try:
@@ -77,7 +92,6 @@ class Main:
 
     def run(self) -> None:
         file, path = self.__chooseRandomPicture()
-        print(file)
         print(path)
 
     def __init__(self) -> None:
