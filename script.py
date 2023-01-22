@@ -5,8 +5,6 @@ import os
 import json
 import datetime
 import random
-from collections.abc import Iterable
-from typing import TypedDict
 from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -15,33 +13,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth.exceptions import MutualTLSChannelError
 
-# custom types
-
-ID = str
-
-
-class Node(TypedDict):
-    """ Type for a node (file or folder) returned by Google Drive API. """
-    id: ID
-    name: str
-    mimeType: str
-
-
-class File(Node):
-    pass
-
-
-class Folder(TypedDict):
-    id: ID
-    name: str
-    nrFolders: int
-    nrFiles: int
-    nodes: list[Node]
-
-
-class CacheEntry(TypedDict):
-    time: str
-    folder: Folder
+from customTypes import *
 
 
 class Main:
