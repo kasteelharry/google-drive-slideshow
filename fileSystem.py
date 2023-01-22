@@ -26,11 +26,27 @@ class FileSystem:
         with open(self.__env['CACHE_FILE'], 'w') as f:
             # there are no circular references by design
             json.dump(self.__cache, f, check_circular=False)
-    
+
+    def __buildDiskFilePath(self,file: File) -> str:
+        _, fileExtension = os.path.splitext(file['name'])
+        return self.__env['PICTURE_TEMP_FOLDER'] + '/' + file['id'] + fileExtension
+
     def getFile(self, file: File) -> str:
-        folder = self.__env['PICTURE_TEMP_FOLDER']
-        path = self.__googleDriveApi.downloadFile(file['id'], file['name'], folder)
+        """
+        Gets the path to a file on disk. The file is downloaded. No caching.
+        @param file: The file we want.
+        @return Path to file on disk.
+        """
+        path = self.__buildDiskFilePath(file)
+        self.__googleDriveApi.downloadFile(file['id'], path)
         return path
+
+    def deleteFile(self, file: File):
+        """
+        @param file: The file to delete.
+        """
+        path = self.__buildDiskFilePath(file)
+        os.remove(path)
 
     def getFolder(self, folderId: ID, forceUpdate=False, skipStore=False) -> Folder:
         """

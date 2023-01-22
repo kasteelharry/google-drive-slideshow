@@ -53,14 +53,13 @@ class GoogleDriveApi:
                 f.write(credentials.to_json())
         self.__credentials = credentials
 
-    def downloadFile(self, fileId: ID, fileName: str, targetFolder: str):
+    def downloadFile(self, fileId: ID, path: str) -> None:
         """
         Download a file.
 
         @param fileID Google Drive ID of file.
-        @param targetFolder Path to target folder on disk. Path must exist completely.
+        @param path Path to target location incl. file name on disk. Path must exist completely.
         """
-        path = f"{targetFolder}/{fileName}"
         try:
             request = self.__service.files().get_media(fileId=fileId)
             with open(path, 'w') as f:
@@ -69,7 +68,6 @@ class GoogleDriveApi:
                 while not done:
                     status, done = downloader.next_chunk()
                     print(f'  download {int(status.progress() * 100)}%')
-                return path
         except HttpError as error:
             raise error
 

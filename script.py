@@ -1,7 +1,12 @@
 #!/usr/bin/python3
 
 import os
+import pathlib
 import random
+import collections
+import shutil
+import json
+from colorama import Fore, Back, Style
 from dotenv import load_dotenv
 import tkinter as tk
 from PIL import Image, ImageTk, UnidentifiedImageError
@@ -15,21 +20,7 @@ class Main:
     __env: env
     __fileSystem: FileSystem
 
-    SUUPORTED_IMAGE_MIME_TYPES = [
-        'image/jpeg',
-        'image/png',
-        'image/heif',
-        'image/x-photoshop',
-        'image/cr2',
-    ]
-    # SUUPORTED_IMAGE_MIME_TYPES = [
-    #     'image/jpeg',
-    #     'image/png',
-    #     'image/heif',
-    #     'image/cr2',
-    #     'image/x-photoshop', # .psd
-    # ]
-    # SUUPORTED_VIDEO_MIME_TYPES = ['image/gif', 'video/avi', 'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-m4v', 'video/x-ms-wmv', 'video/x-msvideo', ]
+    __log: collections.deque[File]
 
     # slideshow
     __slideshow: tk.Tk
@@ -38,6 +29,23 @@ class Main:
     __nextImage: tk.PhotoImage
     __WIDTH_DISPLAY_HALF: float
     __HEIGHT_DISPLAY_HALF: float
+
+    SUPPORTED_IMAGE_MIME_TYPES = [
+        'image/jpeg',
+        'image/png',
+        'image/heif',
+        'image/x-photoshop',
+        'image/cr2',
+    ]
+
+    # SUPPORTED_IMAGE_MIME_TYPES = [
+    #     'image/jpeg',
+    #     'image/png',
+    #     'image/heif',
+    #     'image/cr2',
+    #     'image/x-photoshop', # .psd
+    # ]
+    # SUUPORTED_VIDEO_MIME_TYPES = ['image/gif', 'video/avi', 'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-m4v', 'video/x-ms-wmv', 'video/x-msvideo', ]
 
     class __DirectoryEmptyException(Exception):
         pass
@@ -52,7 +60,8 @@ class Main:
             # CACHE_RETENTION days
             'CACHE_RETENTION': int(os.getenv('CACHE_RETENTION', 30)),
             'CACHE_FILE': os.getenv('CACHE_FILE', 'cache.json'),
-            'PICTURE_TEMP_FOLDER': os.getenv('PICTURE_TEMP_FOLDER', 'temp'),
+            'PICTURE_TEMP_FOLDER': os.path.realpath(os.getenv('PICTURE_TEMP_FOLDER', 'temp')),
+            'PICTURE_KEEP_NR': int(os.getenv('PICTURE_KEEP_NR', 10)),
             # SLIDESHOW_SPEED seconds
             'SLIDESHOW_SPEED': int(os.getenv('SLIDESHOW_SPEED', 30))*1000,
         }
@@ -86,6 +95,7 @@ class Main:
             return file, nextFolder['name'] + "/" + path
 
     def __chooseRandomFileFirstLevel(self) -> tuple[File, str]:
+        # TODO: bias this towards newer folders
         topLevelFolder = self.__fileSystem.getFolder(
             self.__env['ROOT_FOLDER_ID'])
         nrFolders = topLevelFolder['nrFolders']
@@ -107,7 +117,7 @@ class Main:
         while errors < 5:
             try:
                 file, path = self.__chooseRandomFileFirstLevel()
-                if file['mimeType'] in self.SUUPORTED_IMAGE_MIME_TYPES:
+                if file['mimeType'] in self.SUPPORTED_IMAGE_MIME_TYPES:
                     return file, path
                 else:
                     print(f"choose: unsupported file type, retrying: '{path}'")
@@ -117,11 +127,25 @@ class Main:
             errors += 1
         raise RuntimeError('Choosing a random picture failed too many times.')
 
-    def __display_next_slide(self):
+    def __logToFile(self, file: File, path: str) -> None:
+        with open(os.path.join(self.__env['PICTURE_TEMP_FOLDER'], 'log.txt'), 'a') as f:
+            f.write(json.dumps({
+                'id': file['id'],
+                'path': path,
+            }, check_circular=False))
+            f.write(f',{os.linesep}')
+
+    def __display_next_slide(self) -> None:
         print('Get next slide')
         file, path = self.__chooseRandomPicture()
         pathLocal = self.__fileSystem.getFile(file)
         print(f"Got next slide: '{path}'")
+
+        self.__log.append(file)
+        if len(self.__log) == self.__log.maxlen:
+            oldFile = self.__log.popleft()
+            self.__fileSystem.deleteFile(oldFile)
+        self.__logToFile(file, path)
 
         try:
             pilImage: Image = Image.open(pathLocal)
@@ -155,7 +179,8 @@ class Main:
         self.__slideshow.after(
             self.__env['SLIDESHOW_SPEED'], self.__display_next_slide)
 
-    def __onWindowResize(self, event):
+    def __onWindowResize(self, event) -> None:
+        """ Adapt values such that the next rendered image is again maximum size. """
         if (event.widget == self.__slideshow and (self.__WIDTH_DISPLAY_HALF != event.width or self.__HEIGHT_DISPLAY_HALF != event.height)):
             print(f'{event.widget=}: {event.height=}, {event.width=}\n')
             self.__WIDTH_DISPLAY_HALF = event.width
@@ -167,10 +192,30 @@ class Main:
         self.__display_next_slide()
         self.__slideshow.mainloop()
 
+        # cleanup
+        print('Program terminated.')
+
     def __init__(self) -> None:
         self.__readEnv()
         register_heif_opener()
         self.__fileSystem = FileSystem(self.__env)
+        self.__log = collections.deque(maxlen=self.__env['PICTURE_KEEP_NR'])
+
+        tempFolder = self.__env['PICTURE_TEMP_FOLDER']
+
+        programPath = os.path.realpath(os.path.dirname(__file__))
+        if not pathlib.Path(tempFolder).is_relative_to(programPath):
+            # Tempfolder is outside of program directory.
+            # Since we erase its contents, this is dangerous.
+            # Abort.
+            print(
+                Fore.RED + 'PICTURE_TEMP_FOLDER must be in the program directory.' + Style.RESET_ALL)
+            exit(1)
+
+        # clear and generate temp folder
+        if os.path.exists(tempFolder):
+            shutil.rmtree(tempFolder)
+        os.makedirs(tempFolder)
 
         self.__slideshow = tk.Tk()
         self.__WIDTH_DISPLAY_HALF = self.__slideshow.winfo_screenwidth()
