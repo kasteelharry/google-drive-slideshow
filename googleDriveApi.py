@@ -70,7 +70,7 @@ class GoogleDriveApi:
     def googleGetFolderContent(self, folderId: ID) -> list[Node]:
         QUERY_PARAMS: dict[str: any] = {
             'fields': "nextPageToken, files(id, name, mimeType)",
-            'pageSize': 30,  # not guaranteed to be respected by API
+            'pageSize': 40,  # not guaranteed to be respected by API
             'supportsAllDrives': True,  # specify that we handle shared drives
             'includeItemsFromAllDrives': True,  # specify that we handle shared drives
             'corpora': 'drive',  # used for handling shared drives

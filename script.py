@@ -1,12 +1,10 @@
 #!/usr/bin/python3
 
-from __future__ import print_function
 import os
 import random
 from dotenv import load_dotenv
 
 from customTypes import *
-from googleDriveApi import GoogleDriveApi
 from fileSystem import FileSystem
 
 class Main:
@@ -18,15 +16,20 @@ class Main:
 
     def __readEnv(self) -> None:
         load_dotenv()
-        self.__env = {
+        env = {
             'DRIVE_ID': os.getenv('DRIVE_ID'),
             'ROOT_FOLDER_ID': os.getenv('ROOT_FOLDER_ID'),
             'CREDENTIALS_FILE': os.getenv('CREDENTIALS_FILE'),
             'TOKEN_FILE': os.getenv('TOKEN_FILE', 'token.json'),
+            'CACHE_RETENTION': int(os.getenv('CACHE_RETENTION', 30)),
             'CACHE_FILE': os.getenv('CACHE_FILE', 'cache.json'),
         }
+        if env['DRIVE_ID'] and env['ROOT_FOLDER_ID'] and env['CREDENTIALS_FILE']:
+            self.__env=env
+        else:
+            raise ValueError('Environment variables are invalid. Check your `.env`.')
 
-    def __chooseRandomFileRecursive(self, folder: Folder) -> tuple[File, str]:
+    def __chooseRandomFileRec(self, folder: Folder) -> tuple[File, str]:
         hasFiles = folder['nrFiles'] > 0
         n = folder['nrFolders']
         if hasFiles > 0:
@@ -44,7 +47,7 @@ class Main:
             # descend one layer
             nextNode = self.__fileSystem.filterNodes(folder['nodes'], True, False)[rFolder]
             nextFolder = self.__fileSystem.getFolder(nextNode['id'])
-            file, path = self.__chooseRandomFileRecursive(nextFolder)
+            file, path = self.__chooseRandomFileRec(nextFolder)
             return file, nextFolder['name'] + "/" + path
 
     def __chooseRandomFileFirstLevel(self) -> tuple[File, str]:
@@ -54,7 +57,7 @@ class Main:
             topLevelFolder['nodes'], True, False)
         r = random.randint(0, nrFolders-1)
         nextFolder = self.__fileSystem.getFolder(topLevelFolders[r]['id'])
-        file, path = self.__chooseRandomFileRecursive(nextFolder)
+        file, path = self.__chooseRandomFileRec(nextFolder)
         return file, nextFolder['name'] + "/" + path
 
     def __chooseRandomPicture(self) -> tuple[File, str]:
@@ -72,7 +75,7 @@ class Main:
                 errors += 1
         raise RuntimeError("Choosing a random picture failed too many times.")
 
-    def run(self):
+    def run(self) -> None:
         file, path = self.__chooseRandomPicture()
         print(file)
         print(path)
@@ -82,12 +85,12 @@ class Main:
         self.__fileSystem = FileSystem(self.__env)
 
         # sanity check
-        topLevelFolder = self.__fileSystem.getFolder(self.__env['ROOT_FOLDER_ID'])
-        print("sanity check Google Drive API")
-        print("top level name:      '{0}'".format(topLevelFolder['name']))
-        print("top level subfolders: {0:>3}".format(
-            topLevelFolder['nrFolders']))
-        print("top level files:      {0:>3}".format(topLevelFolder['nrFiles']))
+        # topLevelFolder = self.__fileSystem.getFolder(self.__env['ROOT_FOLDER_ID'])
+        # print("sanity check Google Drive API")
+        # print("top level name:      '{0}'".format(topLevelFolder['name']))
+        # print("top level subfolders: {0:>3}".format(
+        #     topLevelFolder['nrFolders']))
+        # print("top level files:      {0:>3}".format(topLevelFolder['nrFiles']))
 
 
 if __name__ == '__main__':
