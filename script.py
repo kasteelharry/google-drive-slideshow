@@ -198,7 +198,7 @@ class Main:
             )
             self.writeBackCache()
             return folder
-        
+
     def filterNodes(self, nodes: list[Node], folders: bool = True, files: bool = True) -> list[Node]:
         """
         Returns files and/or folders from given folder.
@@ -219,7 +219,7 @@ class Main:
             # Programmer fucked up.
             raise ValueError("Cannot return neither files nor folders.")
 
-    def chooseRandomPictureRecursive(self, folder: Folder) -> File:
+    def chooseRandomFileRecursive(self, folder: Folder) -> tuple[File, str]:
         hasFiles = folder['nrFiles'] > 0
         n = folder['nrFolders']
         if hasFiles > 0:
@@ -231,29 +231,39 @@ class Main:
         if hasFiles and rFolder == n-1:
             # pick file from current folder
             rFile = random.randint(0, folder['nrFiles']-1)
-            return self.filterNodes(folder['nodes'], False, True)[rFile]
+            file: File = self.filterNodes(folder['nodes'], False, True)[rFile]
+            return file, file['name']
         else:
             # descend one layer
             nextNode = self.filterNodes(folder['nodes'], True, False)[rFolder]
             nextFolder = self.getFolder(nextNode['id'])
-            return self.chooseRandomPictureRecursive(nextFolder)
+            file, path = self.chooseRandomFileRecursive(nextFolder)
+            return file, nextFolder['name'] + "/" + path
 
-    def chooseRandomPictureFirstLevel(self) -> File:
+    def chooseRandomFileFirstLevel(self) -> tuple[File, str]:
         topLevelFolder = self.getFolder(self.env['ROOT_FOLDER_ID'])
         nrFolders = topLevelFolder['nrFolders']
         topLevelFolders = self.filterNodes(
             topLevelFolder['nodes'], True, False)
         r = random.randint(0, nrFolders-1)
         nextFolder = self.getFolder(topLevelFolders[r]['id'])
-        return self.chooseRandomPictureRecursive(nextFolder)
+        file, path = self.chooseRandomFileRecursive(nextFolder)
+        return file, nextFolder['name'] + "/" + path
 
-    def chooseRandomPicture(self) -> File:
-        while True:
+    def chooseRandomPicture(self) -> tuple[File, str]:
+        """
+        Choose a random picture.
+        Try again in case of errors.
+        """
+        errors = 0
+        while errors < 3:
             try:
-                return self.chooseRandomPictureFirstLevel()
+                return self.chooseRandomFileFirstLevel()
             except self.DirectoryEmptyException:
                 # try again, rejection sampling
-                pass
+                print("Hit empty directory. Retry.")
+                errors += 1
+        raise RuntimeError("Choosing a random picture failed too many times.")
 
     def run(self):
         # topLevelFolders = self.getFolderContent(
@@ -269,8 +279,9 @@ class Main:
         #     folderId = folder['id']
         #     folders = self.getFolderContent(folderId, True, True)
 
-        picture = self.chooseRandomPicture()
-        print(picture)
+        file, path = self.chooseRandomPicture()
+        print(file)
+        print(path)
 
     def __init__(self):
         self.readEnv()
