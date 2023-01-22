@@ -27,8 +27,13 @@ class Node(TypedDict):
     mimeType: str
 
 
+class File(Node):
+    pass
+
+
 class Folder(TypedDict):
     id: ID
+    name: str
     nrFolders: int
     nrFiles: int
     nodes: list[Node]
@@ -50,6 +55,9 @@ class Main:
     cache: dict[ID, CacheEntry]
 
     MIME_TYPE_FOLDER: str = 'application/vnd.google-apps.folder'
+
+    class DirectoryEmptyException(Exception):
+        pass
 
     def readEnv(self) -> dict[str, any]:
         load_dotenv()
@@ -96,20 +104,47 @@ class Main:
         with open(self.env['CACHE_FILE'], 'w') as f:
             json.dump(self.cache, f, indent=4, check_circular=False)
 
-    def googleListNodes(self, folderId: str, queryParams: dict[any] = dict()) -> list[Node]:
+    def googleGetNode(self, nodeId: ID) -> Node:
+        QUERY_PARAMS: dict[str: any] = {
+            'fields': "id, name, mimeType",
+            'supportsAllDrives': True,  # specify that we handle shared drives
+        }
+
+        try:
+            response = self.service.files().get(
+                fileId=nodeId,
+                **QUERY_PARAMS
+            ).execute()
+            return response
+        except HttpError as error:
+            raise error
+
+    def googleGetFolderContent(self, folderId: ID) -> list[Node]:
+        QUERY_PARAMS: dict[str: any] = {
+            'fields': "nextPageToken, files(id, name, mimeType)",
+            'pageSize': 30,  # not guaranteed to be respected by API
+            'supportsAllDrives': True,  # specify that we handle shared drives
+            'includeItemsFromAllDrives': True,  # specify that we handle shared drives
+            'corpora': 'drive',  # used for handling shared drives
+            'driveId': self.env['DRIVE_ID']
+        }
+
         files = []
         pageToken = None
         # iterate over pages
         while True:
             try:
                 response = self.service.files().list(
-                    # and mimeType='application/vnd.google-apps.folder'
                     q=f"'{folderId}' in parents and not trashed",
                     pageToken=pageToken,
-                    **queryParams
+                    **QUERY_PARAMS
                 ).execute()
             except HttpError as error:
                 raise error
+
+            if response.get('incompleteSearch'):
+                print("incomplete search, continuing")
+
             files.extend(response.get('files', []))
 
             pageToken = response.get('nextPageToken', None)
@@ -127,30 +162,24 @@ class Main:
         @param folderId: Google folder ID.
         @param forceUpdate: Force update cache.
         """
-        # Standard params for Google Drive API file list.
-        STANDARD_PARAMS: dict[str: any] = {
-            'fields': "nextPageToken, files(id, name, mimeType)",
-            'pageSize': 30,  # not guaranteed to be respected by API
-            'supportsAllDrives': True,  # specify that we handle shared drives
-            'includeItemsFromAllDrives': True,  # specify that we handle shared drives
-            'corpora': 'drive',  # used for handling shared drives
-            'driveId': self.env['DRIVE_ID']
-        }
 
-        folder = None
         # check cache
         item = self.cache.get(folderId, None)
         # no force update, no miss, not stale
         if not forceUpdate and item is not None and datetime.datetime.utcnow() - datetime.datetime.fromisoformat(item['time']) < datetime.timedelta(days=30):
             # cache hit
-            print("  cache: hit")
-            return self.cache[folderId]['folder']
+            folder = self.cache[folderId]['folder']
+            print("  cache: hit '{0}'".format(folder['name']))
+            return folder
         else:
             # cache miss, stale value or forced update
-            print("  cache: query Google")
-            nodes = self.googleListNodes(folderId, STANDARD_PARAMS)
+            print("  cache: query Google '{0}'".format(folderId), end='')
+            name = self.googleGetNode(folderId)['name']
+            print(f" -> '{name}'")
+            nodes = self.googleGetFolderContent(folderId)
             folder = Folder(
                 id=folderId,
+                name=name,
                 nrFolders=sum(
                     1 for node in nodes if node['mimeType'] == self.MIME_TYPE_FOLDER),
                 nrFiles=sum(
@@ -201,12 +230,15 @@ class Main:
     #     files = self.getFolderContent(folderId, True, False)
     #     pictureDB[folderId] = files
 
-    def chooseRandomPictureRecursive(self, folder: Folder) -> Node:
+    def chooseRandomPictureRecursive(self, folder: Folder) -> File:
         folderId = folder['id']
         hasFiles = folder['nrFiles'] > 0
         n = folder['nrFolders']
         if hasFiles > 0:
             n += 1
+        if n == 0:
+            raise self.DirectoryEmptyException(
+                f"Directory '{folderId}' is empty.")
         rFolder = random.randint(0, n-1)
         if hasFiles and rFolder == n-1:
             # pick file from current folder
@@ -218,7 +250,7 @@ class Main:
             nextFolder = self.getFolder(nextNode['id'])
             return self.chooseRandomPictureRecursive(nextFolder)
 
-    def chooseRandomPicture(self) -> Node:
+    def chooseRandomPictureFirstLevel(self) -> File:
         topLevelFolder = self.getFolder(self.env['ROOT_FOLDER_ID'])
         nrFolders = topLevelFolder['nrFolders']
         topLevelFolders = self.getFolderContent(
@@ -226,6 +258,14 @@ class Main:
         r = random.randint(0, nrFolders-1)
         nextFolder = self.getFolder(topLevelFolders[r]['id'])
         return self.chooseRandomPictureRecursive(nextFolder)
+
+    def chooseRandomPicture(self) -> File:
+        while True:
+            try:
+                return self.chooseRandomPictureFirstLevel()
+            except self.DirectoryEmptyException:
+                # try again, rejection sampling
+                pass
 
     def run(self):
         # topLevelFolders = self.getFolderContent(
