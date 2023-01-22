@@ -266,19 +266,6 @@ class Main:
         raise RuntimeError("Choosing a random picture failed too many times.")
 
     def run(self):
-        # topLevelFolders = self.getFolderContent(
-        #     self.env['ROOT_FOLDER_ID'], False, True)
-
-        # for folder in topLevelFolders:
-        #     print('id: {0}, name: {1}, mimeType: {2}'.format(
-        #         folder['id'], folder['name'], folder['mimeType']))
-        # print(len(topLevelFolders))
-
-        # for folder in topLevelFolders:
-        #     print(f"query folder: '{folder['name']}'")
-        #     folderId = folder['id']
-        #     folders = self.getFolderContent(folderId, True, True)
-
         file, path = self.chooseRandomPicture()
         print(file)
         print(path)
@@ -311,6 +298,14 @@ class Main:
                 print(f"cache: delete stale entry: '{key}'")
                 del self.cache[key]
         self.writeBackCache()
+
+        # sanity check
+        topLevelFolder = self.getFolder(self.env['ROOT_FOLDER_ID'])
+        print("sanity check")
+        print("top level name:      '{0}'".format(topLevelFolder['name']))
+        print("top level subfolders: {0:>3}".format(
+            topLevelFolder['nrFolders']))
+        print("top level files:      {0:>3}".format(topLevelFolder['nrFiles']))
 
 
 if __name__ == '__main__':
