@@ -27,7 +27,7 @@ class FileSystem:
             # there are no circular references by design
             json.dump(self.__cache, f, check_circular=False)
 
-    def __buildDiskFilePath(self,file: File) -> str:
+    def __buildDiskFilePath(self, file: File) -> str:
         _, fileExtension = os.path.splitext(file['name'])
         return self.__env['PICTURE_TEMP_FOLDER'] + '/' + file['id'] + fileExtension
 
@@ -42,9 +42,7 @@ class FileSystem:
         return path
 
     def deleteFile(self, file: File):
-        """
-        @param file: The file to delete.
-        """
+        """ @param file: The file to delete. """
         path = self.__buildDiskFilePath(file)
         os.remove(path)
 
@@ -157,7 +155,7 @@ class FileSystem:
         for key in list(self.__cache.keys()):
             entry = self.__cache[key]
             time = entry['time']
-            if datetime.datetime.utcnow() - datetime.datetime.fromisoformat(time) > datetime.timedelta(days=self.__env['CACHE_RETENTION']):
+            if datetime.datetime.utcnow() - datetime.datetime.fromisoformat(time) > datetime.timedelta(hours=self.__env['CACHE_RETENTION']):
                 print("cache: delete stale entry '{0}', '{1}'".format(
                     key, entry['folder']['name']))
                 del self.__cache[key]

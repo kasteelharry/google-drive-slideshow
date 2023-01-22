@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import tkinter as tk
 from PIL import Image, ImageTk, UnidentifiedImageError
 from pillow_heif import register_heif_opener
+from googleapiclient.errors import HttpError
 
 from customTypes import *
 from fileSystem import FileSystem
@@ -38,15 +39,6 @@ class Main:
         'image/cr2',
     ]
 
-    # SUPPORTED_IMAGE_MIME_TYPES = [
-    #     'image/jpeg',
-    #     'image/png',
-    #     'image/heif',
-    #     'image/cr2',
-    #     'image/x-photoshop', # .psd
-    # ]
-    # SUUPORTED_VIDEO_MIME_TYPES = ['image/gif', 'video/avi', 'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-m4v', 'video/x-ms-wmv', 'video/x-msvideo', ]
-
     class __DirectoryEmptyException(Exception):
         pass
 
@@ -57,7 +49,7 @@ class Main:
             'ROOT_FOLDER_ID': os.getenv('ROOT_FOLDER_ID'),
             'CREDENTIALS_FILE': os.getenv('CREDENTIALS_FILE'),
             'TOKEN_FILE': os.getenv('TOKEN_FILE', 'token.json'),
-            # CACHE_RETENTION days
+            # CACHE_RETENTION hours
             'CACHE_RETENTION': int(os.getenv('CACHE_RETENTION', 30)),
             'CACHE_FILE': os.getenv('CACHE_FILE', 'cache.json'),
             'PICTURE_TEMP_FOLDER': os.path.realpath(os.getenv('PICTURE_TEMP_FOLDER', 'temp')),
@@ -106,7 +98,7 @@ class Main:
         file, path = self.__chooseRandomFileRec(nextFolder)
         return file, nextFolder['name'] + "/" + path
 
-    def __chooseRandomPicture(self) -> tuple[File, str]:
+    def __getRandomPicture(self) -> tuple[File, str]:
         """
         Choose a random picture.
         Retry in case of errors.
@@ -114,16 +106,22 @@ class Main:
         @return File and path to file.
         """
         errors = 0
-        while errors < 5:
+        while errors < 10:
             try:
                 file, path = self.__chooseRandomFileFirstLevel()
                 if file['mimeType'] in self.SUPPORTED_IMAGE_MIME_TYPES:
-                    return file, path
+                    pathLocal = self.__fileSystem.getFile(file)
+                    return file, path, pathLocal
                 else:
                     print(f"choose: unsupported file type, retrying: '{path}'")
             except self.__DirectoryEmptyException:
                 # try again, rejection sampling
                 print('choose: empty directory, retrying')
+            except HttpError as e:
+                if e.status_code != 404:
+                    raise e
+                # some node along the way not found, probably stale cache
+                print('404 error, probably a stale cache entry?')
             errors += 1
         raise RuntimeError('Choosing a random picture failed too many times.')
 
@@ -137,8 +135,7 @@ class Main:
 
     def __display_next_slide(self) -> None:
         print('Get next slide')
-        file, path = self.__chooseRandomPicture()
-        pathLocal = self.__fileSystem.getFile(file)
+        file, path, pathLocal = self.__getRandomPicture()
         print(f"Got next slide: '{path}'")
 
         self.__log.append(file)
@@ -224,7 +221,7 @@ class Main:
         self.__WIDTH_DISPLAY_HALF = 300
         self.__HEIGHT_DISPLAY_HALF = 300
 
-        self.__slideshow.title("EESTEC LC Zurich Slideshow")
+        self.__slideshow.title("Slideshow")
         self.__slideshow.geometry(
             "%dx%d+0+0" % (self.__WIDTH_DISPLAY_HALF, self.__HEIGHT_DISPLAY_HALF))
         self.__slideshow.resizable(width=True, height=True)
