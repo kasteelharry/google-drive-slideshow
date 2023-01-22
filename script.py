@@ -3,26 +3,22 @@
 import os
 import random
 from dotenv import load_dotenv
+import tkinter as tk
+from PIL import Image, ImageTk
 
 from customTypes import *
 from fileSystem import FileSystem
-
-# import tkinter
-# from PIL import Image, ImageTk
-# import time
-
-import tkinter as tk
-from pathlib import Path
-from PIL import Image, ImageTk
-from itertools import cycle
 
 
 class Main:
     __env: env
     __fileSystem: FileSystem
     slideshow: tk.Tk
-    current_slide: tk.Label
-    next_image: tk.PhotoImage
+    currentSlide: tk.Label
+    # need to store this here to not have it garbage collected
+    nextImage: tk.PhotoImage
+    WIDTH_DISPLAY_HALF: float
+    HEIGHT_DISPLAY_HALF: float
 
     class __DirectoryEmptyException(Exception):
         pass
@@ -34,8 +30,11 @@ class Main:
             'ROOT_FOLDER_ID': os.getenv('ROOT_FOLDER_ID'),
             'CREDENTIALS_FILE': os.getenv('CREDENTIALS_FILE'),
             'TOKEN_FILE': os.getenv('TOKEN_FILE', 'token.json'),
+            # CACHE_RETENTION days
             'CACHE_RETENTION': int(os.getenv('CACHE_RETENTION', 30)),
             'CACHE_FILE': os.getenv('CACHE_FILE', 'cache.json'),
+            # SLIDESHOW_SPEED seconds
+            'SLIDESHOW_SPEED': int(os.getenv('SLIDESHOW_SPEED', 5))*1000,
         }
         if env['DRIVE_ID'] and env['ROOT_FOLDER_ID'] and env['CREDENTIALS_FILE']:
             self.__env = env
@@ -114,79 +113,34 @@ class Main:
             errors += 1
         raise RuntimeError('Choosing a random picture failed too many times.')
 
-    # def showPIL(self, pilImage):
-    #     root = tkinter.Tk()
-    #     w, h = root.winfo_screenwidth(), root.winfo_screenheight()
-    #     root.overrideredirect(1)
-    #     root.geometry("%dx%d+0+0" % (w, h))
-    #     root.focus_set()
-    #     root.bind("<Escape>", lambda e: (e.widget.withdraw(), e.widget.quit()))
-    #     canvas = tkinter.Canvas(root, width=w, height=h)
-    #     canvas.pack()
-    #     canvas.configure(background='black')
-    #     imgWidth, imgHeight = pilImage.size
-    #     if imgWidth > w or imgHeight > h:
-    #         ratio = min(w/imgWidth, h/imgHeight)
-    #         imgWidth = int(imgWidth*ratio)
-    #         imgHeight = int(imgHeight*ratio)
-    #         pilImage = pilImage.resize((imgWidth, imgHeight), Image.ANTIALIAS)
-    #     image = ImageTk.PhotoImage(pilImage)
-    #     imagesprite = canvas.create_image(w/2, h/2, image=image)
-    #     root.mainloop()
-
-    # def init(self):
-    #     root = tkinter.Tk()
-    #     w, h = root.winfo_screenwidth(), root.winfo_screenheight()
-    #     root.overrideredirect(1)
-    #     root.geometry("%dx%d+0+0" % (w, h))
-    #     root.focus_set()
-    #     canvas = tkinter.Canvas(root, width=w, height=h)
-    #     canvas.pack()
-    #     canvas.configure(background='black')
-    #     self.root = root
-
-    # def showPIL(self, pilImage):
-    #     imgWidth, imgHeight = pilImage.size
-    #     # resize photo to full screen
-    #     ratio = min(w/imgWidth, h/imgHeight)
-    #     imgWidth = int(imgWidth*ratio)
-    #     imgHeight = int(imgHeight*ratio)
-    #     pilImage = pilImage.resize((imgWidth, imgHeight), Image.ANTIALIAS)
-    #     image = ImageTk.PhotoImage(pilImage)
-    #     imagesprite = canvas.create_image(w/2, h/2, image=image)
-    #     self.root.update_idletasks()
-    #     self.root.update()
-    #     self.root.bind("<Escape>", lambda e: (
-    #         e.widget.withdraw(), e.widget.quit()))
-
     def display_next_slide(self):
         print('Get next slide')
         file, path = self.__chooseRandomPicture()
-        print('  remote:', path)
         pathLocal = self.__fileSystem.getFile(file)
-        print('  local: ', pathLocal)
+        print(f"Got next slide: '{path}'")
 
-        pilImage = Image.open(pathLocal)
+        pilImage: Image = Image.open(pathLocal)
+
+        # resize image to full screen size
         imgWidth, imgHeight = pilImage.size
-        pilImage = pilImage.resize((imgWidth, imgHeight), Image.ANTIALIAS)
+        ratio = min(self.WIDTH_DISPLAY_HALF/imgWidth,
+                    self.HEIGHT_DISPLAY_HALF/imgHeight)
+        imgWidthFull = int(imgWidth*ratio)
+        imgHeightFull = int(imgHeight*ratio)
+        pilImage = pilImage.resize(
+            (imgWidthFull, imgHeightFull), Image.ANTIALIAS)
 
-        name = path
-        self.next_image = ImageTk.PhotoImage(pilImage)
+        # need to store iamge to not have it garbage collected immediately
+        self.nextImage = ImageTk.PhotoImage(pilImage)
 
-        self.current_slide.config(image=self.next_image)
-        self.slideshow.title(name)
+        # self.current_slide.config(image=self.next_image) # for label instead of canvas
+        self.currentSlide.create_image(
+            self.WIDTH_DISPLAY_HALF/2, self.HEIGHT_DISPLAY_HALF/2, image=self.nextImage)
+        self.slideshow.title(path)
+
         self.slideshow.after(1000, self.display_next_slide)
 
     def run(self) -> None:
-        # file, path = self.__chooseRandomPicture()
-        # print(path)
-        # pathLocal = self.__fileSystem.getFile(file)
-        # print(pathLocal)
-
-        image_paths = Path('temp').glob("*.jpg")
-        self.images = cycle(zip(map(lambda p: p.name, image_paths), map(
-            ImageTk.PhotoImage, map(Image.open, image_paths))))
-
         self.display_next_slide()
         self.slideshow.mainloop()
 
@@ -195,17 +149,34 @@ class Main:
         self.__fileSystem = FileSystem(self.__env)
 
         self.slideshow = tk.Tk()
+        self.WIDTH_DISPLAY_HALF = self.slideshow.winfo_screenwidth()
+        self.HEIGHT_DISPLAY_HALF = self.slideshow.winfo_screenheight()
+        # Override window size for testing
+        # self.WIDTH_DISPLAY_HALF = 300
+        # self.HEIGHT_DISPLAY_HALF = 300
+
         self.slideshow.title("EESTEC LC Zurich Slideshow")
-        self.slideshow.geometry("300x300")
+        self.slideshow.geometry(
+            "%dx%d+0+0" % (self.WIDTH_DISPLAY_HALF, self.HEIGHT_DISPLAY_HALF))
         self.slideshow.resizable(width=False, height=False)
-        self.current_slide = tk.Label(self.slideshow)
-        self.current_slide.pack()
-
-        # self.slideshow.set_image_directory("temp")
+        self.slideshow.focus_set()
         self.slideshow.bind("<Return>", lambda e: e.widget.quit())
-        # self.slideshow.start()
 
-        # sanity check
+        # for label instead of canvas
+        # self.current_slide = tk.Label(self.slideshow)
+        # self.current_slide.pack()
+
+        self.currentSlide = tk.Canvas(
+            self.slideshow, width=self.WIDTH_DISPLAY_HALF, height=self.HEIGHT_DISPLAY_HALF)
+        self.currentSlide.pack()
+        self.currentSlide.configure(background='black')
+
+        # force overlay over everything in fullscreen
+        # unfortunately, this also blocks closing why key press
+        # may not work on other platforms than Linux (?)
+        # self.slideshow.overrideredirect(1)
+
+        # sanity check Google Drive API
         # topLevelFolder = self.__fileSystem.getFolder(self.__env['ROOT_FOLDER_ID'])
         # print("sanity check Google Drive API")
         # print("top level name:      '{0}'".format(topLevelFolder['name']))

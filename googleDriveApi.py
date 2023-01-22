@@ -57,7 +57,7 @@ class GoogleDriveApi:
 
     def downloadFile(self, fileId: ID, fileName: str, targetFolder: str):
         """
-        Download a file. ID is used as filename, no extension.
+        Download a file.
         
         @param fileID Google Drive ID of file.
         @param targetFolder Path to target folder on disk. Path must exist completely.
@@ -70,7 +70,7 @@ class GoogleDriveApi:
                 done = False
                 while not done:
                     status, done = downloader.next_chunk()
-                    print(f'Download {int(status.progress() * 100)}.')
+                    print(f'  download {int(status.progress() * 100)}%')
                 return path
         except HttpError as error:
             raise error

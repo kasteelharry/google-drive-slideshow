@@ -9,10 +9,11 @@ from googleDriveApi import GoogleDriveApi
 
 class FileSystem:
     """
-    Providesw basic methods to interact with the filesystem.
+    Provides basic methods to interact with the filesystem.
     The actual files are on Google Drive.
-    This class provides a caching system to avoid repeated long query times
-    or hitting the request limit.
+    This class provides a caching system for folders and their content to avoid
+    repeated long query times or hitting the request limit. Files themselves are
+    not cached.
     """
 
     __env: env
