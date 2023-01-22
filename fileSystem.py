@@ -46,7 +46,7 @@ class FileSystem:
         path = self.__buildDiskFilePath(file)
         os.remove(path)
 
-    def getFolder(self, folderId: ID, forceUpdate=False, skipStore=False) -> Folder:
+    def getFolder(self, folder: Folder, forceUpdate=False, skipStore=False) -> Folder:
         """
         Get a folder from ID. No full files are downloaded.
 
@@ -62,6 +62,7 @@ class FileSystem:
         @param forceUpdate: Force update cache.
         @param skipStore: Don't write to cache. (May still read form cache.) Mainly used for internal purposes.
         """
+        folderId = folder['id']
 
         # query cache
         item = self.__cache.get(folderId, None)
@@ -73,9 +74,8 @@ class FileSystem:
             return folder
         else:
             # cache miss, stale value or forced update
-            print("  cache: miss '{0}'".format(folderId), end='')
+            print("  cache: miss '{0}'".format(folder['name']))
             name = self.__googleDriveApi.googleGetNode(folderId)['name']
-            print(f" -> '{name}'")
             nodes = self.__googleDriveApi.googleGetFolderContent(folderId)
             folder = Folder(
                 id=folderId,
@@ -122,20 +122,20 @@ class FileSystem:
             # writing back cache vs. not losing a lot of progress in the event
             # of a crash.
             skipStore = i % 5 != 0
-            folder = self.getFolder(folderNode['id'], forceUpdate, skipStore)
+            folder = self.getFolder(folderNode, forceUpdate, skipStore)
             self.__forceInitializeRec(folder, forceUpdate)
 
-    def __forceInitialize(self, forceUpdate=False) -> None:
+    def forceInitialize(self, rootFolder: Folder, forceUpdate=False) -> None:
         """ Recursively access all folders to put everything into cache. """
         print(Fore.RED + "cache: FORCE INITIALIZE" + Style.RESET_ALL)
-        topLevelFolder = self.getFolder(self.__env['ROOT_FOLDER_ID'])
+        topLevelFolder = self.getFolder(rootFolder)
         self.__forceInitializeRec(topLevelFolder, forceUpdate)
         # Explicit write back, since we are skipping it sometimes in the
         # recursive function.
         self.__writeBackCache()
         print(Fore.RED + "cache: force initialize completed" + Style.RESET_ALL)
 
-    def __init__(self, env: env, forceInitialize=False) -> None:
+    def __init__(self, env: env) -> None:
         self.__env = env
         self.__googleDriveApi = GoogleDriveApi(self.__env)
 
@@ -160,6 +160,3 @@ class FileSystem:
                     key, entry['folder']['name']))
                 del self.__cache[key]
         self.__writeBackCache()
-
-        if forceInitialize:
-            self.__forceInitialize()

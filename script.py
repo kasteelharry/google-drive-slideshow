@@ -19,6 +19,7 @@ from fileSystem import FileSystem
 
 class Main:
     __env: env
+    __rootFolder: Folder
     __fileSystem: FileSystem
 
     __log: collections.deque[File]
@@ -57,6 +58,18 @@ class Main:
             # SLIDESHOW_SPEED seconds
             'SLIDESHOW_SPEED': int(os.getenv('SLIDESHOW_SPEED', 30))*1000,
         }
+
+        # validate tempFolder
+        programPath = os.path.realpath(os.path.dirname(__file__))
+        if not pathlib.Path(env['PICTURE_TEMP_FOLDER']).is_relative_to(programPath):
+            # Tempfolder is outside of program directory.
+            # Since we erase its contents, this is dangerous.
+            # Abort.
+            print(
+                Fore.RED + 'PICTURE_TEMP_FOLDER must be inside program directory.' + Style.RESET_ALL)
+            exit(1)
+
+        # ensure mandatory args are present
         if env['DRIVE_ID'] and env['ROOT_FOLDER_ID'] and env['CREDENTIALS_FILE']:
             self.__env = env
         else:
@@ -82,19 +95,18 @@ class Main:
             # descend one layer
             nextNode = self.__fileSystem.filterNodes(
                 folder['nodes'], True, False)[rFolder]
-            nextFolder = self.__fileSystem.getFolder(nextNode['id'])
+            nextFolder = self.__fileSystem.getFolder(nextNode)
             file, path = self.__chooseRandomFileRec(nextFolder)
             return file, nextFolder['name'] + "/" + path
 
     def __chooseRandomFileFirstLevel(self) -> tuple[File, str]:
         # TODO: bias this towards newer folders
-        topLevelFolder = self.__fileSystem.getFolder(
-            self.__env['ROOT_FOLDER_ID'])
+        topLevelFolder = self.__fileSystem.getFolder(self.__rootFolder)
         nrFolders = topLevelFolder['nrFolders']
         topLevelFolders = self.__fileSystem.filterNodes(
             topLevelFolder['nodes'], True, False)
         r = random.randint(0, nrFolders-1)
-        nextFolder = self.__fileSystem.getFolder(topLevelFolders[r]['id'])
+        nextFolder = self.__fileSystem.getFolder(topLevelFolders[r])
         file, path = self.__chooseRandomFileRec(nextFolder)
         return file, nextFolder['name'] + "/" + path
 
@@ -179,7 +191,6 @@ class Main:
     def __onWindowResize(self, event) -> None:
         """ Adapt values such that the next rendered image is again maximum size. """
         if (event.widget == self.__slideshow and (self.__WIDTH_DISPLAY_HALF != event.width or self.__HEIGHT_DISPLAY_HALF != event.height)):
-            print(f'{event.widget=}: {event.height=}, {event.width=}\n')
             self.__WIDTH_DISPLAY_HALF = event.width
             self.__HEIGHT_DISPLAY_HALF = event.height
             self.__currentSlide.configure(
@@ -190,30 +201,28 @@ class Main:
         self.__slideshow.mainloop()
 
         # cleanup
+        # temp folder is not cleaned, in case we want to check one of the recent pictures.
         print('Program terminated.')
 
     def __init__(self) -> None:
         self.__readEnv()
         register_heif_opener()
         self.__fileSystem = FileSystem(self.__env)
+
+        # HACK: Get root folder from ID only.
+        self.__rootFolder = self.__fileSystem.getFolder(
+            Folder(id=self.__env['ROOT_FOLDER_ID'], name="", nrFolders=-1, nrFiles=-1))
         self.__log = collections.deque(maxlen=self.__env['PICTURE_KEEP_NR'])
 
-        tempFolder = self.__env['PICTURE_TEMP_FOLDER']
-
-        programPath = os.path.realpath(os.path.dirname(__file__))
-        if not pathlib.Path(tempFolder).is_relative_to(programPath):
-            # Tempfolder is outside of program directory.
-            # Since we erase its contents, this is dangerous.
-            # Abort.
-            print(
-                Fore.RED + 'PICTURE_TEMP_FOLDER must be in the program directory.' + Style.RESET_ALL)
-            exit(1)
+        # self.__fileSystem.forceInitialize(self.__rootFolder)
 
         # clear and generate temp folder
+        tempFolder = self.__env['PICTURE_TEMP_FOLDER']
         if os.path.exists(tempFolder):
             shutil.rmtree(tempFolder)
         os.makedirs(tempFolder)
 
+        # initialize GUI
         self.__slideshow = tk.Tk()
         self.__WIDTH_DISPLAY_HALF = self.__slideshow.winfo_screenwidth()
         self.__HEIGHT_DISPLAY_HALF = self.__slideshow.winfo_screenheight()
@@ -240,7 +249,7 @@ class Main:
         # self.slideshow.overrideredirect(1)
 
         # sanity check Google Drive API
-        # topLevelFolder = self.__fileSystem.getFolder(self.__env['ROOT_FOLDER_ID'])
+        # topLevelFolder = self.__fileSystem.getFolder(self.__rootFolder)
         # print("sanity check Google Drive API")
         # print("top level name:      '{0}'".format(topLevelFolder['name']))
         # print("top level subfolders: {0:>3}".format(
