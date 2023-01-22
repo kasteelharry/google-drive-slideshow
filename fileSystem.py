@@ -28,8 +28,8 @@ class FileSystem:
             json.dump(self.__cache, f, check_circular=False)
     
     def getFile(self, file: File) -> str:
-        FOLDER = 'temp'
-        path = self.__googleDriveApi.downloadFile(file['id'], file['name'], FOLDER)
+        folder = self.__env['PICTURE_TEMP_FOLDER']
+        path = self.__googleDriveApi.downloadFile(file['id'], file['name'], folder)
         return path
 
     def getFolder(self, folderId: ID, forceUpdate=False, skipStore=False) -> Folder:

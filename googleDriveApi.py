@@ -1,6 +1,5 @@
 from __future__ import print_function
 import os
-import io
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -8,7 +7,6 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth.exceptions import MutualTLSChannelError
 from googleapiclient.http import MediaIoBaseDownload
-
 
 from customTypes import *
 
@@ -58,7 +56,7 @@ class GoogleDriveApi:
     def downloadFile(self, fileId: ID, fileName: str, targetFolder: str):
         """
         Download a file.
-        
+
         @param fileID Google Drive ID of file.
         @param targetFolder Path to target folder on disk. Path must exist completely.
         """

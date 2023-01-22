@@ -4,7 +4,8 @@ import os
 import random
 from dotenv import load_dotenv
 import tkinter as tk
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, UnidentifiedImageError
+from pillow_heif import register_heif_opener
 
 from customTypes import *
 from fileSystem import FileSystem
@@ -13,12 +14,30 @@ from fileSystem import FileSystem
 class Main:
     __env: env
     __fileSystem: FileSystem
-    slideshow: tk.Tk
-    currentSlide: tk.Label
+
+    SUUPORTED_IMAGE_MIME_TYPES = [
+        'image/jpeg',
+        'image/png',
+        'image/heif',
+        'image/x-photoshop',
+        'image/cr2',
+    ]
+    # SUUPORTED_IMAGE_MIME_TYPES = [
+    #     'image/jpeg',
+    #     'image/png',
+    #     'image/heif',
+    #     'image/cr2',
+    #     'image/x-photoshop', # .psd
+    # ]
+    # SUUPORTED_VIDEO_MIME_TYPES = ['image/gif', 'video/avi', 'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-m4v', 'video/x-ms-wmv', 'video/x-msvideo', ]
+
+    # slideshow
+    __slideshow: tk.Tk
+    __currentSlide: tk.Label
     # need to store this here to not have it garbage collected
-    nextImage: tk.PhotoImage
-    WIDTH_DISPLAY_HALF: float
-    HEIGHT_DISPLAY_HALF: float
+    __nextImage: tk.PhotoImage
+    __WIDTH_DISPLAY_HALF: float
+    __HEIGHT_DISPLAY_HALF: float
 
     class __DirectoryEmptyException(Exception):
         pass
@@ -33,8 +52,9 @@ class Main:
             # CACHE_RETENTION days
             'CACHE_RETENTION': int(os.getenv('CACHE_RETENTION', 30)),
             'CACHE_FILE': os.getenv('CACHE_FILE', 'cache.json'),
+            'PICTURE_TEMP_FOLDER': os.getenv('PICTURE_TEMP_FOLDER', 'temp'),
             # SLIDESHOW_SPEED seconds
-            'SLIDESHOW_SPEED': int(os.getenv('SLIDESHOW_SPEED', 5))*1000,
+            'SLIDESHOW_SPEED': int(os.getenv('SLIDESHOW_SPEED', 30))*1000,
         }
         if env['DRIVE_ID'] and env['ROOT_FOLDER_ID'] and env['CREDENTIALS_FILE']:
             self.__env = env
@@ -83,27 +103,11 @@ class Main:
 
         @return File and path to file.
         """
-
-        ###########################################################################################
-        ###########################################################################################
-        ###########################################################################################
-        # TODO
-        # make sure the file is an image (else rejection sampling)
-        # download the file
-        # display the file
-        # find a way to still display the file while we are downloading the next one in the background
-        # deal with cache entry of files and folders that don't exist anymore
-
-        SUUPORTED_IMAGE_MIME_TYPES = [
-            'image/cr2', 'image/gif', 'image/heif', 'image/jpeg', 'image/png', 'image/x-photoshop', ]
-        VIEO_MIME_TYPES = ['video/avi', 'video/mp4', 'video/mpeg',
-                           'video/quicktime', 'video/x-m4v', 'video/x-ms-wmv', 'video/x-msvideo', ]
-
         errors = 0
         while errors < 5:
             try:
                 file, path = self.__chooseRandomFileFirstLevel()
-                if file['mimeType'] in SUUPORTED_IMAGE_MIME_TYPES:
+                if file['mimeType'] in self.SUUPORTED_IMAGE_MIME_TYPES:
                     return file, path
                 else:
                     print(f"choose: unsupported file type, retrying: '{path}'")
@@ -113,63 +117,80 @@ class Main:
             errors += 1
         raise RuntimeError('Choosing a random picture failed too many times.')
 
-    def display_next_slide(self):
+    def __display_next_slide(self):
         print('Get next slide')
         file, path = self.__chooseRandomPicture()
         pathLocal = self.__fileSystem.getFile(file)
         print(f"Got next slide: '{path}'")
 
-        pilImage: Image = Image.open(pathLocal)
+        try:
+            pilImage: Image = Image.open(pathLocal)
+        except (UnidentifiedImageError, OSError):
+            # image is unsupported or corrupted
+            # try again
+            self.__slideshow.after(0, self.__display_next_slide)
+            return
 
         # resize image to full screen size
         imgWidth, imgHeight = pilImage.size
-        ratio = min(self.WIDTH_DISPLAY_HALF/imgWidth,
-                    self.HEIGHT_DISPLAY_HALF/imgHeight)
+        # The .load() call is not necessary, but a workaround for
+        # Pillow bug #6185 which causes issues during resizing.
+        # error caused: ValueError: box can't exceed original image size
+        # https://github.com/python-pillow/Pillow/issues/6185
+        pilImage.load()
+        ratio = min(self.__WIDTH_DISPLAY_HALF/imgWidth,
+                    self.__HEIGHT_DISPLAY_HALF/imgHeight)
         imgWidthFull = int(imgWidth*ratio)
         imgHeightFull = int(imgHeight*ratio)
         pilImage = pilImage.resize(
             (imgWidthFull, imgHeightFull), Image.ANTIALIAS)
 
         # need to store iamge to not have it garbage collected immediately
-        self.nextImage = ImageTk.PhotoImage(pilImage)
+        self.__nextImage = ImageTk.PhotoImage(pilImage)
 
-        # self.current_slide.config(image=self.next_image) # for label instead of canvas
-        self.currentSlide.create_image(
-            self.WIDTH_DISPLAY_HALF/2, self.HEIGHT_DISPLAY_HALF/2, image=self.nextImage)
-        self.slideshow.title(path)
+        self.__currentSlide.create_image(
+            self.__WIDTH_DISPLAY_HALF/2, self.__HEIGHT_DISPLAY_HALF/2, image=self.__nextImage)
+        self.__slideshow.title(path)
 
-        self.slideshow.after(1000, self.display_next_slide)
+        self.__slideshow.after(
+            self.__env['SLIDESHOW_SPEED'], self.__display_next_slide)
+
+    def __onWindowResize(self, event):
+        if (event.widget == self.__slideshow and (self.__WIDTH_DISPLAY_HALF != event.width or self.__HEIGHT_DISPLAY_HALF != event.height)):
+            print(f'{event.widget=}: {event.height=}, {event.width=}\n')
+            self.__WIDTH_DISPLAY_HALF = event.width
+            self.__HEIGHT_DISPLAY_HALF = event.height
+            self.__currentSlide.configure(
+                width=self.__WIDTH_DISPLAY_HALF, height=self.__HEIGHT_DISPLAY_HALF)
 
     def run(self) -> None:
-        self.display_next_slide()
-        self.slideshow.mainloop()
+        self.__display_next_slide()
+        self.__slideshow.mainloop()
 
     def __init__(self) -> None:
         self.__readEnv()
+        register_heif_opener()
         self.__fileSystem = FileSystem(self.__env)
 
-        self.slideshow = tk.Tk()
-        self.WIDTH_DISPLAY_HALF = self.slideshow.winfo_screenwidth()
-        self.HEIGHT_DISPLAY_HALF = self.slideshow.winfo_screenheight()
+        self.__slideshow = tk.Tk()
+        self.__WIDTH_DISPLAY_HALF = self.__slideshow.winfo_screenwidth()
+        self.__HEIGHT_DISPLAY_HALF = self.__slideshow.winfo_screenheight()
         # Override window size for testing
-        # self.WIDTH_DISPLAY_HALF = 300
-        # self.HEIGHT_DISPLAY_HALF = 300
+        self.__WIDTH_DISPLAY_HALF = 300
+        self.__HEIGHT_DISPLAY_HALF = 300
 
-        self.slideshow.title("EESTEC LC Zurich Slideshow")
-        self.slideshow.geometry(
-            "%dx%d+0+0" % (self.WIDTH_DISPLAY_HALF, self.HEIGHT_DISPLAY_HALF))
-        self.slideshow.resizable(width=False, height=False)
-        self.slideshow.focus_set()
-        self.slideshow.bind("<Return>", lambda e: e.widget.quit())
+        self.__slideshow.title("EESTEC LC Zurich Slideshow")
+        self.__slideshow.geometry(
+            "%dx%d+0+0" % (self.__WIDTH_DISPLAY_HALF, self.__HEIGHT_DISPLAY_HALF))
+        self.__slideshow.resizable(width=True, height=True)
+        self.__slideshow.bind("<Configure>", self.__onWindowResize)
+        self.__slideshow.bind("<Escape>", lambda e: e.widget.quit())
+        self.__slideshow.focus_set()
 
-        # for label instead of canvas
-        # self.current_slide = tk.Label(self.slideshow)
-        # self.current_slide.pack()
-
-        self.currentSlide = tk.Canvas(
-            self.slideshow, width=self.WIDTH_DISPLAY_HALF, height=self.HEIGHT_DISPLAY_HALF)
-        self.currentSlide.pack()
-        self.currentSlide.configure(background='black')
+        self.__currentSlide = tk.Canvas(
+            self.__slideshow, width=self.__WIDTH_DISPLAY_HALF, height=self.__HEIGHT_DISPLAY_HALF)
+        self.__currentSlide.pack()
+        self.__currentSlide.configure(background='black')
 
         # force overlay over everything in fullscreen
         # unfortunately, this also blocks closing why key press
