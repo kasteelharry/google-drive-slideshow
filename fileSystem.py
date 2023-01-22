@@ -44,7 +44,13 @@ class FileSystem:
     def deleteFile(self, file: File):
         """ @param file: The file to delete. """
         path = self.__buildDiskFilePath(file)
-        os.remove(path)
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            # file already deleted
+            # This can happen if the same image is shown twice. Then it is deleted
+            # after the first time and cannot be deleted again after the second time.
+            pass
 
     def getFolder(self, folder: Folder, forceUpdate=False, skipStore=False) -> Folder:
         """
