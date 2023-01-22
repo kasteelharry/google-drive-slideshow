@@ -155,9 +155,15 @@ class Main:
 
     def getFolder(self, folderId: ID, forceUpdate: bool = False) -> Folder:
         """
+        Get a folder from ID. No full files are downloaded.
+
         Implementation note:
-        If the cache misses, this gets the whole folder content from Google and
-        caches it. This allows us to compute folder statistics.
+        Results are cached from last time. If the cache misses or it is too old,
+        the data is fetched from Google Drive API.
+
+        If the cache misses, this gets the folder attributes as well as all direct
+        children and their attributes from Google and caches them. This allows us
+        to compute folder statistics.
 
         @param folderId: Google folder ID.
         @param forceUpdate: Force update cache.
@@ -192,69 +198,51 @@ class Main:
             )
             self.writeBackCache()
             return folder
-
-    def getFolderContent(self, folderId: ID, files: bool = True, folders: bool = True, forceUpdate: bool = False) -> list[Node]:
+        
+    def filterNodes(self, nodes: list[Node], folders: bool = True, files: bool = True) -> list[Node]:
         """
         Returns files and/or folders from given folder.
 
-        @param folderId: Google folder ID.
+        @param nodes: List of nodes.
         @param files: Include files.
         @param folders: Include folders.
-        @param forceUpdate: Force update cache.
         """
-        nodes = self.getFolder(folderId, forceUpdate)['nodes']
 
         # filter result
         if folders and not files:
             return [node for node in nodes if node['mimeType'] == self.MIME_TYPE_FOLDER]
-            # return filter(lambda node: node['mimeType'] == self.MIME_TYPE_FOLDER, nodes)
         elif files and not folders:
             return [node for node in nodes if node['mimeType'] != self.MIME_TYPE_FOLDER]
-            # return filter(lambda node: node['mimeType'] != self.MIME_TYPE_FOLDER, nodes)
         elif files and folders:
             return nodes
         else:
             # Programmer fucked up.
             raise ValueError("Cannot return neither files nor folders.")
 
-    # def getFolder(self, folderId: str, forceUpdate: bool = False) -> Folder:
-    #     """ Get a folder. Ensures that statistics in node exist. """
-    #     # make sure cache entry exists
-    #     self.getFolderContent(folderId, True, True, forceUpdate)
-    #     return self.cache[folderId]['folder']
-
-    # def recursivePictureFinding(self, folderId: ID):
-    #     folders = self.getFolderContent(folderId, False, True)
-    #     for folder in folders:
-    #         self.recursivePictureFinding(folder)
-    #     files = self.getFolderContent(folderId, True, False)
-    #     pictureDB[folderId] = files
-
     def chooseRandomPictureRecursive(self, folder: Folder) -> File:
-        folderId = folder['id']
         hasFiles = folder['nrFiles'] > 0
         n = folder['nrFolders']
         if hasFiles > 0:
             n += 1
         if n == 0:
             raise self.DirectoryEmptyException(
-                f"Directory '{folderId}' is empty.")
+                "Directory '{0}' is empty.".format(folder['id']))
         rFolder = random.randint(0, n-1)
         if hasFiles and rFolder == n-1:
             # pick file from current folder
             rFile = random.randint(0, folder['nrFiles']-1)
-            return self.getFolderContent(folderId, True, False)[rFile]
+            return self.filterNodes(folder['nodes'], False, True)[rFile]
         else:
             # descend one layer
-            nextNode = self.getFolderContent(folderId, False, True)[rFolder]
+            nextNode = self.filterNodes(folder['nodes'], True, False)[rFolder]
             nextFolder = self.getFolder(nextNode['id'])
             return self.chooseRandomPictureRecursive(nextFolder)
 
     def chooseRandomPictureFirstLevel(self) -> File:
         topLevelFolder = self.getFolder(self.env['ROOT_FOLDER_ID'])
         nrFolders = topLevelFolder['nrFolders']
-        topLevelFolders = self.getFolderContent(
-            self.env['ROOT_FOLDER_ID'], False, True)
+        topLevelFolders = self.filterNodes(
+            topLevelFolder['nodes'], True, False)
         r = random.randint(0, nrFolders-1)
         nextFolder = self.getFolder(topLevelFolders[r]['id'])
         return self.chooseRandomPictureRecursive(nextFolder)
