@@ -17,7 +17,7 @@ from customTypes import *
 from fileSystem import FileSystem
 
 
-class Main:
+class Slideshow:
     __env: env
     __rootFolder: Folder
     __fileSystem: FileSystem
@@ -258,5 +258,5 @@ class Main:
 
 
 if __name__ == '__main__':
-    instance = Main()
+    instance = Slideshow()
     instance.run()
