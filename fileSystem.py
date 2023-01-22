@@ -25,6 +25,11 @@ class FileSystem:
         with open(self.__env['CACHE_FILE'], 'w') as f:
             # there are no circular references by design
             json.dump(self.__cache, f, check_circular=False)
+    
+    def getFile(self, file: File) -> str:
+        FOLDER = 'temp'
+        path = self.__googleDriveApi.downloadFile(file['id'], file['name'], FOLDER)
+        return path
 
     def getFolder(self, folderId: ID, forceUpdate=False, skipStore=False) -> Folder:
         """
@@ -135,7 +140,7 @@ class FileSystem:
         for key in list(self.__cache.keys()):
             entry = self.__cache[key]
             time = entry['time']
-            if datetime.datetime.utcnow() - datetime.datetime.fromisoformat(time) > datetime.timedelta(days=60):
+            if datetime.datetime.utcnow() - datetime.datetime.fromisoformat(time) > datetime.timedelta(days=self.__env['CACHE_RETENTION']):
                 print("cache: delete stale entry '{0}', '{1}'".format(
                     key, entry['folder']['name']))
                 del self.__cache[key]

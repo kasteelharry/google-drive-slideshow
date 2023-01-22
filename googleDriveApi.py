@@ -1,11 +1,14 @@
 from __future__ import print_function
 import os
+import io
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth.exceptions import MutualTLSChannelError
+from googleapiclient.http import MediaIoBaseDownload
+
 
 from customTypes import *
 
@@ -51,6 +54,26 @@ class GoogleDriveApi:
             with open(self.__env['TOKEN_FILE'], 'w') as f:
                 f.write(credentials.to_json())
         self.__credentials = credentials
+
+    def downloadFile(self, fileId: ID, fileName: str, targetFolder: str):
+        """
+        Download a file. ID is used as filename, no extension.
+        
+        @param fileID Google Drive ID of file.
+        @param targetFolder Path to target folder on disk. Path must exist completely.
+        """
+        path = f"{targetFolder}/{fileName}"
+        try:
+            request = self.__service.files().get_media(fileId=fileId)
+            with open(path, 'w') as f:
+                downloader = MediaIoBaseDownload(f.buffer, request)
+                done = False
+                while not done:
+                    status, done = downloader.next_chunk()
+                    print(f'Download {int(status.progress() * 100)}.')
+                return path
+        except HttpError as error:
+            raise error
 
     def googleGetNode(self, nodeId: ID) -> Node:
         QUERY_PARAMS: dict[str: any] = {
@@ -110,6 +133,7 @@ class GoogleDriveApi:
 
         self.__authenticate()
         try:
-            self.__service = build('drive', 'v3', credentials=self.__credentials)
+            self.__service = build(
+                'drive', 'v3', credentials=self.__credentials)
         except MutualTLSChannelError as error:
             raise error
