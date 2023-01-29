@@ -2,9 +2,26 @@ import os
 import json
 import datetime
 from colorama import Fore, Back, Style
+from typing import TypedDict
+from googleDriveApi import GoogleDriveApi, Node, ID
+from slideshow import Env
 
-from customTypes import *
-from googleDriveApi import GoogleDriveApi
+
+class File(Node):
+    pass
+
+
+class Folder(TypedDict):
+    id: ID
+    name: str
+    nrFolders: int
+    nrFiles: int
+    nodes: list[Node]
+
+
+class CacheEntry(TypedDict):
+    time: str
+    folder: Folder
 
 
 class FileSystem:
@@ -16,7 +33,7 @@ class FileSystem:
     not cached.
     """
 
-    __env: env
+    __env: Env
     __googleDriveApi: GoogleDriveApi
 
     __cache: dict[ID, CacheEntry]
@@ -141,7 +158,7 @@ class FileSystem:
         self.__writeBackCache()
         print(Fore.RED + "cache: force initialize completed" + Style.RESET_ALL)
 
-    def __init__(self, env: env) -> None:
+    def __init__(self, env: Env) -> None:
         self.__env = env
         self.__googleDriveApi = GoogleDriveApi(self.__env)
 

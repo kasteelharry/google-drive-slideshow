@@ -13,12 +13,14 @@ from PIL import Image, ImageTk, UnidentifiedImageError
 from pillow_heif import register_heif_opener
 from googleapiclient.errors import HttpError
 
-from customTypes import *
-from fileSystem import FileSystem
+from fileSystem import FileSystem, Folder, File
+
+
+Env = dict[str, any]
 
 
 class Slideshow:
-    __env: env
+    __env: Env
     __rootFolder: Folder
     __fileSystem: FileSystem
 
@@ -214,6 +216,7 @@ class Slideshow:
             Folder(id=self.__env['ROOT_FOLDER_ID'], name="", nrFolders=-1, nrFiles=-1))
         self.__log = collections.deque(maxlen=self.__env['PICTURE_KEEP_NR'])
 
+        # force initialize cache
         # self.__fileSystem.forceInitialize(self.__rootFolder)
 
         # clear and generate temp folder

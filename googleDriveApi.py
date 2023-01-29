@@ -7,8 +7,18 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth.exceptions import MutualTLSChannelError
 from googleapiclient.http import MediaIoBaseDownload
+from typing import TypedDict
+from slideshow import Env
 
-from customTypes import *
+
+ID = str
+
+
+class Node(TypedDict):
+    """ Type for a node (file or folder) returned by Google Drive API. """
+    id: ID
+    name: str
+    mimeType: str
 
 
 class GoogleDriveApi:
@@ -17,7 +27,7 @@ class GoogleDriveApi:
     Provides exactly the functionality this project needs.
     """
 
-    __env: env
+    __env: Env
     __credentials: Credentials
     __service: any
 
@@ -96,7 +106,7 @@ class GoogleDriveApi:
             'driveId': self.__env['DRIVE_ID']
         }
 
-        files = []
+        nodes: list[Node] = []
         pageToken = None
         # iterate over pages
         while True:
@@ -116,15 +126,15 @@ class GoogleDriveApi:
             if response.get('incompleteSearch'):
                 print("incomplete search, continuing")
 
-            files.extend(response.get('files', []))
+            nodes.extend(response.get('files', []))
 
             pageToken = response.get('nextPageToken', None)
             if pageToken is None:
                 break
 
-        return files
+        return nodes
 
-    def __init__(self, env: env) -> None:
+    def __init__(self, env: Env) -> None:
         self.__env = env
 
         self.__authenticate()
