@@ -6,6 +6,8 @@ The application requires read access to your Google Drive. It will ask for it du
 
 This does work with shared Drives.
 
+Starting with the root folder, recursively select a random folder (or itself, if it contains at least one file). Once we hit a folder with only files, pick a random file. Validate it to be of supported image type and not respect the `MAX_FILE_SIZE` parameter. If we ever run into an issue (unsopported file, empty folder, etc.) try again from the root.
+
 ## Setup
 
 You need to create a Google Cloud project, enable the API `drive.readonly`, Configure OAuth, and create access credentials. Make sure the Google account you are using has access to the files you want for the slideshow.
@@ -14,15 +16,15 @@ You need to create a Google Cloud project, enable the API `drive.readonly`, Conf
 
 Furthermore, setup a `.env` file containing at least the following parameters:
 
-- DRIVE_ID='your-drive-id'
-- ROOT_FOLDER_ID='your-folder-id' (folder needs to be on that drive)
-- CREDENTIALS_FILE='credentials.json'
-- SLIDESHOW_SPEED: How fast the slideshow is going in seconds. More precisely, it will be this time plus the time to find and download a new image.
+- `DRIVE_ID='your-drive-id'`
+- `ROOT_FOLDER_ID='your-folder-id'` (folder needs to be on that drive)
+- `CREDENTIALS_FILE='credentials.json'`
+- `SLIDESHOW_SPEED=30`: How fast the slideshow is going in seconds. More precisely, it will be this time plus the time to find and download a new image.
 
 Optional parameters:
 
-- MAX_FILE_SIZE: Maximum allowable file size in MB. Larger files are skipped.
-- PICTURE_KEEP_NR: How many pictures are kept before they are deleted again. This can be useful, if you want to have another look at a past but recent picture.
+- `MAX_FILE_SIZE`: Maximum allowable file size in MB. Larger files are skipped.
+- `PICTURE_KEEP_NR`: How many pictures are kept before they are deleted again. This can be useful, if you want to have another look at a past but recent picture.
 
 There are a few more technical options, which you can find in the `Slideshow` class in the `__readEnv` method. (advanced users)
 
