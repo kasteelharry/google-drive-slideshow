@@ -17,11 +17,11 @@ Furthermore, setup a `.env` file containing at least the following parameters:
 - DRIVE_ID='your-drive-id'
 - ROOT_FOLDER_ID='your-folder-id' (folder needs to be on that drive)
 - CREDENTIALS_FILE='credentials.json'
+- SLIDESHOW_SPEED: How fast the slideshow is going in seconds. More precisely, it will be this time plus the time to find and download a new image.
 
 Optional parameters:
 
-- MAX_FILE_SIZE: Maximum allowable file size. Larger files are skipped.
-- SLIDESHOW_SPEED: How fast the slideshow is going.
+- MAX_FILE_SIZE: Maximum allowable file size in MB. Larger files are skipped.
 - PICTURE_KEEP_NR: How many pictures are kept before they are deleted again. This can be useful, if you want to have another look at a past but recent picture.
 
 There are a few more technical options, which you can find in the `Slideshow` class in the `__readEnv` method. (advanced users)

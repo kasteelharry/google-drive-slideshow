@@ -48,6 +48,8 @@ class Slideshow:
             'ROOT_FOLDER_ID': os.getenv('ROOT_FOLDER_ID'),
             'CREDENTIALS_FILE': os.getenv('CREDENTIALS_FILE'),
             'TOKEN_FILE': os.getenv('TOKEN_FILE', 'token.json'),
+            # SLIDESHOW_SPEED seconds
+            'SLIDESHOW_SPEED': int(os.getenv('SLIDESHOW_SPEED'))*1000,
             # CACHE_RETENTION hours
             'CACHE_RETENTION': int(os.getenv('CACHE_RETENTION', 30)),
             'CACHE_FILE': os.getenv('CACHE_FILE', 'cache.json'),
@@ -55,8 +57,6 @@ class Slideshow:
             'PICTURE_KEEP_NR': int(os.getenv('PICTURE_KEEP_NR', 10)),
             # MAX_FILE_SIZE in MB, -1 to disable
             'MAX_FILE_SIZE': int(os.getenv('MAX_FILE_SIZE', -1))*1_000_000,
-            # SLIDESHOW_SPEED seconds
-            'SLIDESHOW_SPEED': int(os.getenv('SLIDESHOW_SPEED', 30))*1000,
         }
 
         # validate tempFolder
