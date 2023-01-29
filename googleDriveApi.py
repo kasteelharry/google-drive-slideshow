@@ -8,7 +8,7 @@ from googleapiclient.errors import HttpError
 from google.auth.exceptions import MutualTLSChannelError
 from googleapiclient.http import MediaIoBaseDownload
 from typing import TypedDict
-from slideshow import Env
+from envType import Env
 
 
 ID = str
@@ -19,6 +19,7 @@ class Node(TypedDict):
     id: ID
     name: str
     mimeType: str
+    size: int # size in bytes, absent for folders
 
 
 class GoogleDriveApi:
@@ -81,7 +82,7 @@ class GoogleDriveApi:
         except HttpError as error:
             raise error
 
-    def googleGetNode(self, nodeId: ID) -> Node:
+    def getNode(self, nodeId: ID) -> Node:
         QUERY_PARAMS: dict[str: any] = {
             'fields': "id, name, mimeType",
             'supportsAllDrives': True,  # specify that we handle shared drives
@@ -96,9 +97,9 @@ class GoogleDriveApi:
         except HttpError as error:
             raise error
 
-    def googleGetFolderContent(self, folderId: ID) -> list[Node]:
+    def getFolderContent(self, folderId: ID) -> list[Node]:
         QUERY_PARAMS: dict[str: any] = {
-            'fields': "nextPageToken, files(id, name, mimeType)",
+            'fields': "nextPageToken, files(id, name, mimeType, size)",
             'pageSize': 40,  # not guaranteed to be respected by API
             'supportsAllDrives': True,  # specify that we handle shared drives
             'includeItemsFromAllDrives': True,  # specify that we handle shared drives
@@ -126,7 +127,14 @@ class GoogleDriveApi:
             if response.get('incompleteSearch'):
                 print("incomplete search, continuing")
 
-            nodes.extend(response.get('files', []))
+            responses = response.get('files', [])
+
+            def m(x):
+                if x['mimeType'] != self.MIME_TYPE_FOLDER:
+                    x['size'] = int(x['size'])
+                return x
+            l = map(lambda x: m(x), responses)
+            nodes.extend(l)
 
             pageToken = response.get('nextPageToken', None)
             if pageToken is None:

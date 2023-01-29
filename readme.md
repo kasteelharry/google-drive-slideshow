@@ -15,11 +15,12 @@ You need to create a Google Cloud project, enable the API `drive.readonly`, Conf
 Furthermore, setup a `.env` file containing at least the following parameters:
 
 - DRIVE_ID='your-drive-id'
-- ROOT_FOLDER_ID='your-folder-id'
+- ROOT_FOLDER_ID='your-folder-id' (folder needs to be on that drive)
 - CREDENTIALS_FILE='credentials.json'
 
 Optional parameters:
 
+- MAX_FILE_SIZE: Maximum allowable file size. Larger files are skipped.
 - SLIDESHOW_SPEED: How fast the slideshow is going.
 - PICTURE_KEEP_NR: How many pictures are kept before they are deleted again. This can be useful, if you want to have another look at a past but recent picture.
 
@@ -54,7 +55,3 @@ Tkinter: `pip install tk-tools` should be enough? Else `apt install python3-tk`.
 `apt install python3-pil python3-pil.imagetk`
 
 check supported image formats of Pillow: `python3 -m PIL`
-
-### TODO
-
-Exclude large (> ~10MB) files as they take too long to download. Rejection sample these.

@@ -12,12 +12,8 @@ import tkinter as tk
 from PIL import Image, ImageTk, UnidentifiedImageError
 from pillow_heif import register_heif_opener
 from googleapiclient.errors import HttpError
-
 from fileSystem import FileSystem, Folder, File
-
-
-Env = dict[str, any]
-
+from envType import Env
 
 class Slideshow:
     __env: Env
@@ -57,6 +53,8 @@ class Slideshow:
             'CACHE_FILE': os.getenv('CACHE_FILE', 'cache.json'),
             'PICTURE_TEMP_FOLDER': os.path.realpath(os.getenv('PICTURE_TEMP_FOLDER', 'temp')),
             'PICTURE_KEEP_NR': int(os.getenv('PICTURE_KEEP_NR', 10)),
+            # MAX_FILE_SIZE in MB, -1 to disable
+            'MAX_FILE_SIZE': int(os.getenv('MAX_FILE_SIZE', -1))*1_000_000,
             # SLIDESHOW_SPEED seconds
             'SLIDESHOW_SPEED': int(os.getenv('SLIDESHOW_SPEED', 30))*1000,
         }
@@ -124,10 +122,13 @@ class Slideshow:
             try:
                 file, path = self.__chooseRandomFileFirstLevel()
                 if file['mimeType'] in self.SUPPORTED_IMAGE_MIME_TYPES:
-                    pathLocal = self.__fileSystem.getFile(file)
-                    return file, path, pathLocal
+                    if self.__env['MAX_FILE_SIZE'] == -1 or self.__env['MAX_FILE_SIZE'] > file['size']:
+                        pathLocal = self.__fileSystem.getFile(file)
+                        return file, path, pathLocal
+                    else:
+                        print(f"choose: file too large, retrying ('{path}')")
                 else:
-                    print(f"choose: unsupported file type, retrying: '{path}'")
+                    print(f"choose: unsupported file type, retrying ('{path}')")
             except self.__DirectoryEmptyException:
                 # try again, rejection sampling
                 print('choose: empty directory, retrying')
@@ -204,7 +205,7 @@ class Slideshow:
 
         # cleanup
         # temp folder is not cleaned, in case we want to check one of the recent pictures.
-        print('Program terminated.')
+        print('User closed window. Slideshow terminated.')
 
     def __init__(self) -> None:
         self.__readEnv()
@@ -213,7 +214,7 @@ class Slideshow:
 
         # HACK: Get root folder from ID only.
         self.__rootFolder = self.__fileSystem.getFolder(
-            Folder(id=self.__env['ROOT_FOLDER_ID'], name="", nrFolders=-1, nrFiles=-1))
+            Folder(id=self.__env['ROOT_FOLDER_ID'], name="", nrFolders=-1, nrFiles=-1, nodes=[]))
         self.__log = collections.deque(maxlen=self.__env['PICTURE_KEEP_NR'])
 
         # force initialize cache

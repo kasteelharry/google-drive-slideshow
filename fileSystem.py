@@ -4,7 +4,7 @@ import datetime
 from colorama import Fore, Back, Style
 from typing import TypedDict
 from googleDriveApi import GoogleDriveApi, Node, ID
-from slideshow import Env
+from envType import Env as Env
 
 
 class File(Node):
@@ -98,8 +98,8 @@ class FileSystem:
         else:
             # cache miss, stale value or forced update
             print("  cache: miss '{0}'".format(folder['name']))
-            name = self.__googleDriveApi.googleGetNode(folderId)['name']
-            nodes = self.__googleDriveApi.googleGetFolderContent(folderId)
+            name = self.__googleDriveApi.getNode(folderId)['name']
+            nodes = self.__googleDriveApi.getFolderContent(folderId)
             folder = Folder(
                 id=folderId,
                 name=name,
