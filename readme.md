@@ -26,7 +26,7 @@ Optional parameters:
 - `MAX_FILE_SIZE`: Maximum allowable file size in MB. Larger files are skipped.
 - `PICTURE_KEEP_NR`: How many pictures are kept before they are deleted again. This can be useful, if you want to have another look at a past but recent picture.
 
-There are a few more technical options, which you can find in the `Slideshow` class in the `__readEnv` method. (advanced users)
+There are a few more technical options, which you can find in the `Slideshow` class in the `__readEnv` method. (for advanced users)
 
 ## Usage
 
@@ -34,23 +34,23 @@ Run with `./slideshow.py`.
 
 ## Dependencies
 
-Install dependencies from `requirements.txt`.
+You need Python 3 and pip.
+
+Install dependencies from `requirements.txt` with `pip install -r requirements.txt`.
 
 ## License
 
-Copyright (C) 2023 Michael Heider michael@heider.org
-
-This software is licensed under GPL 3.0 or any later version, see license file.
+This software is licensed under GPL 3.0 or later, see license file.
 
 ## Trivia
 
-This project was created to show off pictures of [EESTEC LC Zurich](https://www.eestec.ch) by Michael Heider in January 2023, then chairman of EESTEC LC Zurich.
+This project was created to show off pictures of [EESTEC LC Zurich](https://eestec.ethz.ch) by Michael Heider in January 2023, then Chairman of EESTEC LC Zurich.
 
 ## Developper
 
 Help for the developer of this software and his random notes.
 
-[Michael's Google Cloud Console Project](https://console.cloud.google.com/home/dashboard?authuser=1&project=eestec-lc-zurich-slideshow&supportedpurview=project)
+[Michael's Google Cloud Console project](https://console.cloud.google.com/home/dashboard?authuser=1&project=eestec-lc-zurich-slideshow&supportedpurview=project)
 
 Tkinter: `pip install tk-tools` should be enough? Else `apt install python3-tk`.
 
