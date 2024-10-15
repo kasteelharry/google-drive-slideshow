@@ -1,6 +1,9 @@
-python-dotenv
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
-tk-tools
-pillow-heif
+colorama==0.4.4
+google_api_python_client==2.109.0
+google_auth_oauthlib==1.0.0
+opencv_python==4.10.0.84
+Pillow==9.0.1
+Pillow==10.4.0
+pillow_heif==0.18.0
+protobuf==3.12.4
+python-dotenv==1.0.1
